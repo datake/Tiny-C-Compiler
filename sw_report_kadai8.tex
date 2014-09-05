@@ -1,0 +1,271 @@
+\documentclass[a4paper,12pt]{jarticle}
+\usepackage{listings}
+\title{平成26年度 3回生前期学生実験SW \\最終課題（課題８） \\}
+\author{1029-24-3152 竹田創}
+\date{提出日：\today  }
+%%
+\makeatletter
+
+\makeatother
+%%
+\begin{document}
+\maketitle
+
+\section{課題8}
+\lstset{numbers=left,basicstyle=\small}
+
+\subsection{方針設計}
+kadai8.lは字句解析を行い、トークンとして返すデータをreturnで表す。\\
+kadai8.yは主にパースを実行し、３つのセクションからなる。
+\%tokenでトークンの宣言をする。
+ルールセクションで生成規則とアクションを記述する。
+Cコードセクションで、タプルを構成するmake\_tupleとトークンを構成するmake\_token\_nodeと定数ノードを表すmake\_constant\_nodeの構造体を定義する。\\
+kadai8\_print.cは構文木の表示を行う\\
+kadai8\_semantic\_analyser.cは意味解析を主に行う。\\
+kadai8\_code\_generation.cはコード生成を主に行う。\\
+yyerror()は構文エラーが生じたとき
+にパーサが（自動的に）呼び出す関数である．\\
+kadi7.hは構造体を定義し、データ生成関数のプロトタイプ宣言を行う。
+
+%%
+\subsection{各部の説明}
+%%
+
+%%
+\subsubsection{kadai8\_code\_generation.c}
+主にkadai8\_code\_generation.cはコード生成を行う。その詳細な説明は次のセクションで説明するが、ここではその方針設計を説明する。実験資料のように生成されるコード列を構造体のリストで表し、１命令のコード生成を行う関数としてコード生成を行うemit関数を準備する。emit() の引数を一つ増やしてラベルも扱えるようにする。大域変数としてラベルの番号を記憶する変数を用意し、make\_label関数でラベルを作成する際に一意なラベルを作成する。また、make\_return\_label関数ではリターンする際に使う一意なラベルを作成する。\\
+大域変数を宣言するとき、大域データ領域にデータを割り当てるCOMMONを使い、４バイトのメモリを割り当てる。関数定義のコードを生成するときに、top\_allocの値が0かどうかの判断をし0でなければ、つまり局所変数をもつとき関数本体のコードを生成する。\\
+文のコード生成はwhile,if,if-else,returnがあり、分岐や条件分岐を用いる。それぞれの場合で分岐する可能性のある数のラベルをmake\_label関数を使用して作りjeやjmpでエミットする。\\
+算術演算式のコードではRSL方式を用いた。
+関数を呼び出すときには、callする度にexternし、引数がいくつあるかを変数parm\_numを用いて計算し、espに引数の４倍をたす。
+
+
+\subsubsection{kadai8.h}
+kadai8.hは構造体を定義する
+具体的にはc(constant\ node),tk(token\ node),tp(4-tuple),nd(tree)の４つを構造体としてつくる。constant\ node内でopはノードの種類、vは定数値を表す。token\ nodeではopはノードの種類、token 型の*nextはポインタ、nameはトークンの値、levはオブジェクトが宣言されたブロックのレベル、kindはオブジェクトの種類、offsetは相対番地（オブジェクトが局所変数及びパラメータの場合）やパラメータの数（関数の場合）を記憶を保持する整数値を表す。4-tuple内でopはノードの種類を表し、aは枝を表すポインタである。\\
+また、ヘッダを二重にインクルードしないようにインクルードガードを行う。
+%%
+
+
+
+\subsubsection{kadai8\_semantic\_analyser.c}
+yaccファイルで変数宣言、パラメータ宣言、関数定義、変数参照、関数呼び出しの際に用いる解析用の関数を用意する。
+また、コード生成のときに必要となる、意味解析時のエラーをカウントするerror関数と警告を行うwarn関数を準備する。構造体tokenによるスタックを操作する関数として、lookup\_sym、globalize\_sym、pop\_symを定義する。
+lookup\_symはchar*型の引数をとり、同じ名前のオブジェクトがオブジェクト構造体のスタック上に存在するか調べる関数であり、lexファイルで利用する。\\
+globalize\_symはtree型の引数で与えられるオブジェクト構造体を大域関数を表すオブジェクトとして登録し直す関数であり、関数呼び出しで利用する。\\
+pop\_symは現在のブロックレベルを１減らすとき、そのスコープ内のオブジェクト構造体をスタックからポップする関数である。\\
+%%
+\subsubsection{kadai8.y}
+kadai8.yの宣言部でトークンの宣言をする。count\_parm,offset,cur\_levを外部変数としてヘッダファイルをインクルードする前に宣言する。これにより他のファイルでもこの外部変数を利用することができる。TOKENはchar*型、CONSTANTはint型、IDENTIFIERと非終端記号はtree型として宣言する。\\
+ルールセクションでは生成規則とアクションを記述する。アクションでtreeを返す時、枝が４未満の時はNULLを指定する。c言語記述部ではtree型のトークンノード、定数ノード、タプルを作る関数を定義する。また構文木を表示する関数はprint\_program,print\_external\_declarationなどで作成した。課題６からの変更点は意味解析を行う際に必要な変数や関数を組み込んだことである。\\
+
+\begin{itemize}
+ \item 変数宣言を解析するmake\_decl関数はdeclarator\_listへ還元する際に使用する
+ \item パラメータ宣言を解析するmake\_parm\_decl関数はparameter\_declarationへ還元する際に使用する。
+ \item 関数定義を解析するmake\_fun\_def関数はfunction\_definitionへ還元する際に使用する。
+ \item 変数参照を解析するref\_var関数はprimary\_exprへ還元する際に使用する。
+ \item 関数参照を解析するref\_fun関数はpostfix\_exprのIDENTIFIERへ還元する際に使用する。
+\end{itemize}
+また、現在のブロックレベルを保持するint型の大域変数であるcur\_levをパラメータリストの解析をはじめる時と複文の解析をはじめるときに１増やし、関数定義の解析を終えるときと複文の解析を終えるときに１減らす。
+関数のパラメータの数を記憶するためparameter\_type\_listが呼び出される度にint型の変数count\_parmを１増やし関数定義の解析が終了したらdeclaratorのoffsetにcount\_parmを保持しておく。そして関数を参照する際にargument\_listを呼び出すたびに再びcount\_parmwoを１ずつ増やしていき、check\_parm\_num関数でパラメータの数が正しいか判定する。
+
+
+%%
+\subsubsection{kadai8\_print.c}
+
+%%
+
+
+
+\subsection{実行方法}
+以下のようにしてtinycファイルからアセンブリファイルを作成する。
+\begin{verbatim}
+a0129169@ws39:~/le3sw/kadai8/final_report$ bison -d kadai8.y &&  flex kadai8.l && gcc -Wall -o tcc kadai8.tab.c lex.yy.c kadai8_semantic_analyser.c  kadai8_print.c kadai8_code_generation.c
+a0129169@ws39:~/le3sw/kadai8/final_report$  ./tcc  < label.tc >label.asm1: warning: ‘chk’ undeclared function
+
+a0129169@ws39:~/le3sw/kadai8/final_report$ nasm -f elf label.asm && gcc -m32 -o label label.o c_fun.c
+
+a0129169@ws39:~/le3sw/kadai8/final_report$ ./label 
+OK
+
+\end{verbatim}
+
+
+%%
+\subsection{実行例}
+例として上であげたlabel.asmのアセンブリコードを示す。 
+\begin{verbatim}
+	GLOBAL	lab
+lab:	push	ebp
+	mov	ebp, esp
+	sub	esp, 4
+	mov	eax, 1
+	mov	[ebp-4], eax
+	mov	eax, 0
+	mov	[ebp-8], eax
+	mov	eax, [ebp-4]
+	cmp	eax, 0
+	je	L1
+	mov	eax, [ebp-8]
+	cmp	eax, 0
+	je	L2
+	mov	eax, 1
+	jmp	R1
+	jmp	L3
+L2:
+	mov	eax, 2
+	jmp	R1
+L3:
+L1:
+R1:	mov	esp, ebp
+	pop	ebp
+	ret
+	GLOBAL	main
+main:	push	ebp
+	mov	ebp, esp
+	sub	esp, 4
+	mov	eax, 2
+	push	eax
+	call	lab
+	add	esp, 0
+	push	eax
+	EXTERN	chk
+	call	chk
+	add	esp, 8
+R2:	mov	esp, ebp
+	pop	ebp
+	ret
+\end{verbatim}
+
+%%
+\subsection{ソースコード  }
+課題７から変更があったkadai8\_semantic\_analyser.cとkadai8\_semantic\_analyser.cのソースコードのみ示す。
+kadai8\_semantic\_analyser.cのソースコード
+\lstinputlisting{kadai8_semantic_analyser.c}
+kadai8\_code\_generation.cのソースコード
+\lstinputlisting{kadai8_code_generation.c}
+%%
+
+\section{感想}
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

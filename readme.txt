@@ -1,0 +1,4 @@
+kadai8.yがyaccファイルでkadai8.lがlexファイルでパースするプログラムです。
+kadai8_print.cが構文木を表示するプログラム、kadai8_semantic_analyser.cが意味解析を行うプログラム、kadai8_code_generator.cがコード生成するプログラムです。
+
+実行方法
